@@ -1,0 +1,51 @@
+name: Android Manual Build
+
+on: 
+  workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Setup Environment
+        run: |
+          # Принудительная очистка
+          sudo rm -rf *
+          sudo apt-get update
+
+          # Установка зависимых пакетов
+          sudo apt-get install -y git openjdk-17-jdk zip unzip
+
+          # Клонирование репозитория вручную
+          git clone https://github.com/$GITHUB_REPOSITORY.git .
+          git checkout $GITHUB_REF
+
+          # Настройка Gradle
+          chmod +x gradlew
+          ./gradlew --version
+
+      - name: Build APK
+        run: |
+          # Чистая сборка
+          ./gradlew clean
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            --info \
+            --refresh-dependencies
+
+      - name: Create Artifact
+        run: |
+          # Создание архива с результатами
+          mkdir -p artifacts
+          cp app/build/outputs/apk/**/*.apk artifacts/
+          zip -r build_results.zip artifacts/
+          echo "ARTIFACT_PATH=build_results.zip" >> $GITHUB_ENV
+
+      - name: Upload Artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Загрузка через GitHub CLI
+          gh release create manual-build --title "Manual Build" --notes "Built manually"
+          gh release upload manual-build $ARTIFACT_PATH
