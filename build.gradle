@@ -1,41 +1,56 @@
-buildscript {
+// build.gradle (Module: app)
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
 
-    ext.kotlin_version = '1.9.21'
-    repositories {
-        google()
-        mavenCentral()
+android {
+    namespace 'io.litebit.wallet'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "io.litebit.wallet"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
-    dependencies {
 
-        // in below line we are adding configurations to our project.
-        configurations.all {
-            // in below line we are adding strategy for each dependency and requesting the details
-            resolutionStrategy.eachDependency {details ->
-                // on below line we are getting to see the details using requested.
-                def requested = details.requested
-                // in below line we are requesting a group.
-                if (requested.group == 'com.android.support'){
-                    // on below line we are checking if the request is a group and checking if it starts with com.android.support.
-                    if(!requested.name.startsWith("multidex")){
-                        // if the requested name starts with multi dex then we are displaying the use version which is given below.
-                        details.useVersion '25.3.0'
-                    }
-                }
-            }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
 
-        classpath 'com.android.tools.build:gradle:8.2.1'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
     }
 }
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
+dependencies {
+    implementation 'androidx.core:core-ktx:1.10.1'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.6.2'
+
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.7.7'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.7.7'
+
+    implementation 'androidx.preference:preference-ktx:1.2.1'
+    implementation 'androidx.browser:browser:1.7.0'
+
+    implementation 'com.github.razir.progressbutton:progressbutton:2.1.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
