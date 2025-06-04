@@ -1,4 +1,4 @@
-name: Android Build (Fixed)
+name: Android Build (Fixed Version)
 
 on:
   push:
@@ -11,35 +11,41 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout code (forced)
+      - name: Force Clean Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          clean: true
 
-      - name: Setup Java (forced clean)
+      - name: Setup Java (Force Latest)
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: 'zulu'
           java-version: '17'
+          check-latest: true
           cache: 'gradle'
-          check-latest: true  # Критически важный параметр
 
-      - name: Fix permissions
+      - name: Fix Gradle Environment
         run: |
-          sudo chmod +x gradlew
-          ./gradlew --version
+          sudo rm -rf ~/.gradle/caches
+          chmod +x gradlew
+          ./gradlew --stop
 
-      - name: Build with Gradle
+      - name: Build with Gradle (Clean)
         run: |
           ./gradlew assembleDebug \
           --no-daemon \
           --stacktrace \
           --info \
-          --refresh-dependencies  # Форсированное обновление
+          --refresh-dependencies \
+          --build-cache
 
-      - name: Upload Artifact (fixed)
-        uses: actions/upload-artifact@v4-beta  # Альтернатива при проблемах с v4
+      - name: Upload Artifact (Alternative)
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          name: app-build
+          path: |
+            app/build/outputs/apk/**/*.apk
+            app/build/outputs/mapping/**/*.mapping
+          retention-days: 3
