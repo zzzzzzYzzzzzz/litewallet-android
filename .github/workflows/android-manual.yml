@@ -1,51 +1,46 @@
-name: Android Manual Build
+name: Android Build (No Upload-Artifact)
 
-on: 
+on:
   workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
     steps:
-      - name: Setup Environment
+      # 1. Альтернативный способ загрузки кода
+      - name: Direct Git Clone
         run: |
-          # Принудительная очистка
-          sudo rm -rf *
-          sudo apt-get update
-
-          # Установка зависимых пакетов
-          sudo apt-get install -y git openjdk-17-jdk zip unzip
-
-          # Клонирование репозитория вручную
           git clone https://github.com/$GITHUB_REPOSITORY.git .
           git checkout $GITHUB_REF
+          git submodule update --init --recursive
+        env:
+          GITHUB_REF: ${{ github.ref }}
 
-          # Настройка Gradle
-          chmod +x gradlew
-          ./gradlew --version
+      # 2. Ручная установка Java
+      - name: Manual Java 17 Setup
+        run: |
+          sudo apt update
+          sudo apt install -y openjdk-17-jdk
+          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
 
+      # 3. Сборка APK
       - name: Build APK
         run: |
-          # Чистая сборка
-          ./gradlew clean
+          chmod +x gradlew
           ./gradlew assembleDebug \
             --no-daemon \
             --stacktrace \
             --info \
             --refresh-dependencies
 
-      - name: Create Artifact
+      # 4. Альтернативная загрузка результатов
+      - name: Create Download Link
         run: |
-          # Создание архива с результатами
-          mkdir -p artifacts
-          cp app/build/outputs/apk/**/*.apk artifacts/
-          zip -r build_results.zip artifacts/
-          echo "ARTIFACT_PATH=build_results.zip" >> $GITHUB_ENV
-
-      - name: Upload Artifact
+          sudo apt install -y zip
+          zip -r build_output.zip app/build/outputs/apk/
+          echo "DOWNLOAD_URL=curl -u $GITHUB_ACTOR:$GH_TOKEN -X POST https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=build_output.zip --data-binary @build_output.zip" >> $GITHUB_ENV
+          echo "::notice::Download APK manually from artifacts directory"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Загрузка через GitHub CLI
-          gh release create manual-build --title "Manual Build" --notes "Built manually"
-          gh release upload manual-build $ARTIFACT_PATH
