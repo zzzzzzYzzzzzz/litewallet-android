@@ -1,4 +1,4 @@
-name: Android Build
+name: Android Build (Fixed)
 
 on:
   push:
@@ -11,17 +11,22 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code (forced)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Java
+      - name: Setup Java (forced clean)
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
+          check-latest: true  # Критически важный параметр
 
-      - name: Fix Gradle Permissions
+      - name: Fix permissions
         run: |
-          chmod +x gradlew
+          sudo chmod +x gradlew
           ./gradlew --version
 
       - name: Build with Gradle
@@ -29,11 +34,12 @@ jobs:
           ./gradlew assembleDebug \
           --no-daemon \
           --stacktrace \
-          --info
+          --info \
+          --refresh-dependencies  # Форсированное обновление
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Upload Artifact (fixed)
+        uses: actions/upload-artifact@v4-beta  # Альтернатива при проблемах с v4
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/*.apk
-          retention-days: 3
+          if-no-files-found: error
