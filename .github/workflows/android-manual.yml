@@ -1,46 +1,86 @@
-name: Android Build (No Upload-Artifact)
+name: Android CI - Fixed Version
 
 on:
-  workflow_dispatch
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 40
 
     steps:
-      # 1. Альтернативный способ загрузки кода
-      - name: Direct Git Clone
-        run: |
-          git clone https://github.com/$GITHUB_REPOSITORY.git .
-          git checkout $GITHUB_REF
-          git submodule update --init --recursive
-        env:
-          GITHUB_REF: ${{ github.ref }}
+      # 1. Подготовка окружения
+      - name: Checkout with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # 2. Ручная установка Java
-      - name: Manual Java 17 Setup
-        run: |
-          sudo apt update
-          sudo apt install -y openjdk-17-jdk
-          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+      # 2. Настройка Java с кешированием
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+          check-latest: true
 
-      # 3. Сборка APK
-      - name: Build APK
+      # 3. Фикс Gradle
+      - name: Fix Gradle Environment
         run: |
+          # Принудительное обновление wrapper
+          ./gradlew wrapper --gradle-version 8.10 --distribution-type bin
+          
+          # Очистка кешей
+          ./gradlew --stop
+          rm -rf ~/.gradle/caches
+          
+          # Права на исполнение
           chmod +x gradlew
-          ./gradlew assembleDebug \
-            --no-daemon \
-            --stacktrace \
-            --info \
-            --refresh-dependencies
+          ./gradlew --version
 
-      # 4. Альтернативная загрузка результатов
-      - name: Create Download Link
+      # 4. Сборка с проверкой deprecated API
+      - name: Build with Deprecation Checks
         run: |
-          sudo apt install -y zip
-          zip -r build_output.zip app/build/outputs/apk/
-          echo "DOWNLOAD_URL=curl -u $GITHUB_ACTOR:$GH_TOKEN -X POST https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=build_output.zip --data-binary @build_output.zip" >> $GITHUB_ENV
-          echo "::notice::Download APK manually from artifacts directory"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ./gradlew clean assembleDebug \
+            --warning-mode=all \
+            --stacktrace \
+            --scan \
+            --no-daemon \
+            --refresh-dependencies \
+            --continue
+
+      # 5. Анализ результатов
+      - name: Check Build Status
+        if: always()
+        run: |
+          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            echo "BUILD_SUCCEEDED=true" >> $GITHUB_ENV
+            echo "::notice::Build completed successfully"
+          else
+            echo "::error::Build failed - check deprecation warnings"
+            grep -r "deprecated" build/reports/ || true
+          fi
+
+      # 6. Альтернативная загрузка артефактов
+      - name: Upload Artifacts
+        if: env.BUILD_SUCCEEDED == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-build
+          path: |
+            app/build/outputs/apk/**/*.apk
+            build/reports/**/*.html
+          retention-days: 7
+
+      # 7. Отчет о deprecated API
+      - name: Upload Deprecation Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deprecation-warnings
+          path: |
+            build/reports/**/*
+            **/build/tmp/**/*.log
+          retention-days: 3
