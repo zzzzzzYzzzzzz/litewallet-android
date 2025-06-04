@@ -1,1 +1,0 @@
-run: ./gradlew assembleProdRelease --no-daemon
